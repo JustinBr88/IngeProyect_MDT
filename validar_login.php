@@ -72,25 +72,28 @@ try {
             if ($colab) {
                 session_start();
                 // Limpiar cualquier sesión de usuario anterior
-                unset($_SESSION['logeado']);
-                unset($_SESSION['usuario']);
-                unset($_SESSION['rol']);
-                unset($_SESSION['id']);
-                unset($_SESSION['foto']);
-                unset($_SESSION['tipo']);
-                
+                unset($_SESSION['logeado'], $_SESSION['usuario'], $_SESSION['rol'], $_SESSION['id'], $_SESSION['foto'], $_SESSION['tipo']);
+
                 // Establecer solo variables de colaborador
                 $_SESSION['colaborador_logeado'] = true;
-                $_SESSION['colaborador_id'] = $colab['id'];
-                $_SESSION['colaborador_nombre'] = $colab['nombre'];
-                $_SESSION['colaborador_apellido'] = $colab['apellido'];
+                // Usar la clave 'id' asegurada por validarColaborador
+                $_SESSION['colaborador_id'] = isset($colab['id']) ? (int)$colab['id'] : null;
+                $_SESSION['colaborador_nombre'] = $colab['nombre'] ?? '';
+                $_SESSION['colaborador_apellido'] = $colab['apellido'] ?? '';
                 $_SESSION['colaborador_foto'] = $colab['foto'] ?? '';
-                $_SESSION['colaborador_usuario'] = $colab['usuario'];
+                $_SESSION['colaborador_usuario'] = $colab['usuario'] ?? '';
+
+                // Verificar que se tenga un id válido antes de confirmar login
+                if (empty($_SESSION['colaborador_id'])) {
+                    echo json_encode(['success' => false, 'mensaje' => 'Error: no se pudo obtener el id del colaborador']);
+                    exit;
+                }
+
                 echo json_encode([
-                    'success' => true, 
+                    'success' => true,
                     'mensaje' => 'Login exitoso como colaborador',
                     'redirect' => 'colaboradores/portal_colaborador.php',
-                    'tipo' => 'colaboradores'
+                    'tipo' => 'colaborador'
                 ]);
                 exit;
             }

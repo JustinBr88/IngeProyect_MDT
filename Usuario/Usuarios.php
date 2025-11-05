@@ -1,46 +1,93 @@
-<?php 
-include('../navbar_unificado.php'); 
+<?php
+include('../navbar_unificado.php');
 require_once('../conexion.php');
 
 $conexion = new Conexion();
 $mensaje = '';
 
+// Obtener departamentos para el select (usar en el modal)
+$departamentos = $conexion->obtenerDepartamentos();
+
 // Procesar formulario de creación
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['crear'])) {
     $nombre = trim($_POST['nombre']);
+    $apellido = trim($_POST['apellido']);
+    $identificacion = trim($_POST['identificacion']);
     $correo = trim($_POST['correo']);
     $rol = $_POST['rol'];
     $contrasena = $_POST['contrasena'];
-    $activo = (int)$_POST['activo'];
-    
-    // Validar campos
+
+    // Establecer activo por defecto en 1 (Activo) para creación automática
+    $activo = 1;
+
+    $departamento_id = isset($_POST['departamento_id']) && $_POST['departamento_id'] !== '' ? (int)$_POST['departamento_id'] : null;
+
+    // Validar campos obligatorios para cualquier usuario
     if (empty($nombre) || empty($correo) || empty($contrasena)) {
-        $mensaje = "<div class='alert alert-danger'>Todos los campos obligatorios deben estar llenos.</div>";
+        $mensaje = "<div class='alert alert-danger'>Nombre, correo y contraseña son obligatorios.</div>";
     } else {
-        // Verificar si el correo ya existe
-        $usuarioExiste = $conexion->verificarUsuarioExiste($correo);
-        if ($usuarioExiste) {
+        // Verificar si el correo ya existe en usuarios
+        if ($conexion->verificarUsuarioExiste($correo)) {
             $mensaje = "<div class='alert alert-danger'>Ya existe un usuario con ese correo electrónico.</div>";
         } else {
-            // Crear usuario
-            $resultado = $conexion->crearUsuario($nombre, $correo, $rol, $contrasena, $activo);
-            if ($resultado) {
-                $mensaje = "<div class='alert alert-success'>Usuario creado exitosamente.</div>";
+            if ($rol === 'colab') {
+                // Validar campos obligatorios específicos para colaboradores
+                if (empty($apellido) || empty($identificacion)) {
+                    $mensaje = "<div class='alert alert-danger'>Para colaboradores, apellido e identificación son obligatorios.</div>";
+                } else {
+                    // Verificar si la identificación ya existe en colaboradores
+                    if ($conexion->existeIdentificacionColaborador($identificacion)) {
+                        $mensaje = "<div class='alert alert-danger'>Ya existe un colaborador con esa identificación.</div>";
+                    } elseif ($conexion->existeCorreoColaborador($correo)) {
+                        $mensaje = "<div class='alert alert-danger'>El correo ya está registrado para otro colaborador.</div>";
+                    } else {
+                        // Preparar username (puedes adaptar: aquí uso la parte antes de @ del correo)
+                        $usuario_name = strtok($correo, '@');
+
+                        $resultado = $conexion->insertarColaborador(
+                            $nombre,
+                            $apellido,
+                            $identificacion,
+                            null,               // foto (podrías implementar upload luego)
+                            null,               // foto_tipo (null si no se usa)
+                            '',                 // direccion
+                            '',                 // ubicacion
+                            '',                 // telefono
+                            $correo,
+                            $departamento_id,
+                            $usuario_name,
+                            $contrasena
+                        );
+
+                        if ($resultado) {
+                            $mensaje = "<div class='alert alert-success'>Colaborador creado exitosamente (registra en 'colaboradores' y 'usuarios').</div>";
+                        } else {
+                            $mensaje = "<div class='alert alert-danger'>Error al crear el colaborador. Revisa logs del servidor.</div>";
+                        }
+                    }
+                }
             } else {
-                $mensaje = "<div class='alert alert-danger'>Error al crear el usuario.</div>";
+                // Crear usuario normal (admin u otro rol) - activo por defecto = 1
+                $resultado = $conexion->crearUsuario($nombre, $correo, $rol, $contrasena, $activo);
+                if ($resultado) {
+                    $mensaje = "<div class='alert alert-success'>Usuario creado exitosamente.</div>";
+                } else {
+                    $mensaje = "<div class='alert alert-danger'>Error al crear el usuario.</div>";
+                }
             }
         }
     }
 }
 
-// Procesar formulario de modificación
+// Procesar formulario de modificación (seguro con isset para 'activo')
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['modificar'])) {
     $id = (int)$_POST['id'];
     $nombre = trim($_POST['nombre']);
     $correo = trim($_POST['correo']);
     $rol = $_POST['rol'];
-    $activo = (int)$_POST['activo'];
-    
+    // Leer 'activo' de forma segura: si no viene, dar por defecto 1
+    $activo = isset($_POST['activo']) ? (int)$_POST['activo'] : 1;
+
     // Validar campos
     if (empty($nombre) || empty($correo)) {
         $mensaje = "<div class='alert alert-danger'>Nombre y correo son obligatorios.</div>";
@@ -148,10 +195,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['modificar'])) {
                             <input type="text" name="nombre" class="form-control" required>
                         </div>
                         <div class="col-md-6 mb-3">
+                            <label class="form-label">Apellido *</label>
+                            <input type="text" name="apellido" class="form-control" required>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Identificación *</label>
+                            <input type="text" name="identificacion" class="form-control" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
                             <label class="form-label">Correo Electrónico *</label>
                             <input type="email" name="correo" class="form-control" required>
                         </div>
                     </div>
+
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Rol *</label>
@@ -161,18 +220,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['modificar'])) {
                             </select>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Estado</label>
-                            <select name="activo" class="form-control">
-                                <option value="1">Activo</option>
-                                <option value="0">Inactivo</option>
+                            <label class="form-label">Departamento</label>
+                            <select name="departamento_id" class="form-control">
+                                <option value="">-- N/A --</option>
+                                <?php foreach ($departamentos as $d): ?>
+                                    <option value="<?= htmlspecialchars($d['id']) ?>"><?= htmlspecialchars($d['nombre']) ?></option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                     </div>
+
                     <div class="row">
                         <div class="col-md-12 mb-3">
                             <label class="form-label">Contraseña *</label>
-                            <input type="password" name="contrasena" class="form-control" required 
-                                   minlength="6" placeholder="Mínimo 6 caracteres">
+                            <input type="password" name="contrasena" class="form-control" required minlength="6" placeholder="Mínimo 6 caracteres">
                         </div>
                     </div>
                 </div>
@@ -186,6 +247,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['modificar'])) {
         </div>
     </div>
 </div>
+
 
 <!-- Modal Editar Usuario -->
 <div class="modal fade" id="modalEditarUsuario" tabindex="-1">
@@ -229,7 +291,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['modificar'])) {
                             <label class="form-label">Nueva Contraseña (opcional)</label>
                             <input type="password" name="contrasena" class="form-control" 
                                    minlength="6" placeholder="Dejar vacío para mantener la actual">
-                            <small class="text-muted">Solo llena este campo si deseas cambiar la contraseña</small>
+                               <small class="text-muted">Solo llena este campo si deseas cambiar la contraseña</small>
                         </div>
                     </div>
                 </div>
@@ -248,7 +310,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['modificar'])) {
 // Script para cargar datos en el modal de edición
 document.addEventListener('DOMContentLoaded', function() {
     const botonesEditar = document.querySelectorAll('.btn-editar');
-    
+
     botonesEditar.forEach(btn => {
         btn.addEventListener('click', function() {
             document.getElementById('edit-id').value = this.dataset.id;

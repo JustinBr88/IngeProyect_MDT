@@ -204,7 +204,22 @@ CREATE TABLE entregas_colaborador (
   FOREIGN KEY (usuario_admin_id) REFERENCES usuarios(id)
 );
 
--- Triggers para automatizar el manejo de descartes
+ALTER TABLE categorias
+  ADD UNIQUE INDEX uq_categorias_nombre (nombre);
+
+ALTER TABLE inventario
+  MODIFY categoria_id INT NULL;
+
+
+ALTER TABLE inventario DROP FOREIGN KEY IF EXISTS inventario_ibfk_1;
+
+
+ALTER TABLE inventario
+  ADD CONSTRAINT fk_inventario_categorias
+    FOREIGN KEY (categoria_id) REFERENCES categorias(id)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE;
+
 DELIMITER $$
 
 CREATE TRIGGER actualizar_estado_descarte 

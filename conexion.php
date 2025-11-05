@@ -1,8 +1,8 @@
 <?php
 class Conexion {
     private $servername = "localhost";
-    private $username = "root";
-    private $password = "1234";
+    private $username = "labo2fa";
+    private $password = "GoLoNdRiNa56(/)";
     private $dbname = "cmdb";
     private $port = 3306;
     private $conn;
@@ -82,6 +82,8 @@ class Conexion {
             $colaborador['nombre'] = $colaborador['colab_nombre'] ?? $colaborador['nombre'];
             $colaborador['foto'] = $colaborador['colab_foto'] ?? $colaborador['foto'];
             $colaborador['usuario'] = $colaborador['nombre']; // Para compatibilidad
+            // Asegurar que exista una clave 'id' con el id del colaborador (viene como 'colaborador_id' en la consulta)
+            $colaborador['id'] = $colaborador['colaborador_id'] ?? $colaborador['id'] ?? null;
             return $colaborador;
         }
         return false;
@@ -119,7 +121,7 @@ class Conexion {
     }
 
     // Verificar si un correo ya existe para otro colaborador
-    public function correoDuplicadoColaborador($correo, $colaborador_id) {
+   public function correoDuplicadoColaborador($correo, $colaborador_id) {
         $stmt = $this->conn->prepare("SELECT id FROM colaboradores WHERE correo = ? AND id != ? AND activo = 1");
         $stmt->bind_param("si", $correo, $colaborador_id);
         $stmt->execute();
@@ -128,6 +130,8 @@ class Conexion {
         $stmt->close();
         return $existe;
     }
+
+    
 
     // Actualizar perfil de colaborador
     public function actualizarPerfilColaborador($id, $nombre, $apellido, $correo, $telefono, $direccion, $ubicacion, $foto_path = null) {
@@ -1213,7 +1217,7 @@ class Conexion {
     }
 
     // Métodos para gestión de colaboradores
-    public function existeIdentificacionColaborador($identificacion) {
+     public function existeIdentificacionColaborador($identificacion) {
         try {
             $stmt = $this->conn->prepare("SELECT COUNT(*) as count FROM colaboradores WHERE identificacion = ? AND activo = 1");
             $stmt->bind_param("s", $identificacion);
@@ -1258,45 +1262,120 @@ class Conexion {
         }
     }
 
-    public function insertarColaborador($nombre, $apellido, $identificacion, $foto, $direccion, $ubicacion, $telefono, $correo, $departamento_id, $usuario, $contrasena) {
-        try {
-            $this->conn->begin_transaction();
-
-            // 1. Insertar en tabla colaboradores
-            $stmt = $this->conn->prepare("
-                INSERT INTO colaboradores (nombre, apellido, identificacion, foto, direccion, ubicacion, telefono, correo, departamento_id, activo) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-            ");
-            $stmt->bind_param("ssssssssi", $nombre, $apellido, $identificacion, $foto, $direccion, $ubicacion, $telefono, $correo, $departamento_id);
-            $stmt->execute();
-            $colaborador_id = $this->conn->insert_id;
-            $stmt->close();
-
-            // 2. Insertar en tabla usuarios
-            $contrasena_hash = password_hash($contrasena, PASSWORD_DEFAULT);
-            $stmt = $this->conn->prepare("
-                INSERT INTO usuarios (nombre, correo, contrasena, rol, activo, created_at) 
-                VALUES (?, ?, ?, 'colab', 1, NOW())
-            ");
-            $stmt->bind_param("sss", $usuario, $correo, $contrasena_hash);
-            $stmt->execute();
-            $stmt->close();
-
-            $this->conn->commit();
-            return true;
-
-        } catch (Exception $e) {
-            $this->conn->rollback();
-            error_log("Error en insertarColaborador(): " . $e->getMessage());
-            return false;
+    // Reemplaza la sección de insertarColaborador por esto:
+public function insertarColaborador(
+    $nombre,
+    $apellido,
+    $identificacion,
+    $foto = null,
+    $foto_tipo = null,
+    $direccion = '',
+    $ubicacion = '',
+    $telefono = '',
+    $correo = null,
+    $departamento_id = null,
+    $usuario = '',
+    $contrasena = ''
+) {
+    try {
+        // Validaciones básicas
+        if (empty($nombre) || empty($apellido) || empty($identificacion) || empty($correo) || empty($contrasena)) {
+            throw new Exception("Faltan campos obligatorios para insertar colaborador");
         }
-    }
 
-    // Métodos para CRUD de Usuarios
-    public function verificarUsuarioExiste($correo) {
-        $stmt = $this->conn->prepare("SELECT id FROM usuarios WHERE correo = ?");
-        $stmt->bind_param("s", $correo);
-        $stmt->execute();
+        if ($this->existeIdentificacionColaborador($identificacion)) {
+            throw new Exception("Identificación ya registrada");
+        }
+        if ($this->verificarUsuarioExiste($correo) || $this->existeCorreoColaborador($correo)) {
+            throw new Exception("Correo ya registrado");
+        }
+
+        $this->conn->begin_transaction();
+
+        // 1) Insertar en colaboradores (10 placeholders)
+        $sql = "
+            INSERT INTO colaboradores 
+                (nombre, apellido, identificacion, foto, foto_tipo, direccion, ubicacion, telefono, correo, departamento_id, activo) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+        ";
+        $stmt = $this->conn->prepare($sql);
+        if (!$stmt) {
+            $msg = "Prepare falló (colaboradores): " . $this->conn->error;
+            error_log($msg);
+            throw new Exception($msg);
+        }
+
+        // Preparar variables para bind (usar null donde aplique)
+        $dept = $departamento_id === null ? null : (int)$departamento_id;
+
+        // Tipos: 9 "s" (strings/binary) + 1 "i" (departamento_id int) = 10
+        // Asegúrate que el número de caracteres coincida exactamente con el número de placeholders
+        $types = "sssssssssi"; // CORREGIDO: 9 's' + 1 'i' = 10
+
+        // bind_param exige variables (no literales), así que las pasamos en orden
+        if (!$stmt->bind_param(
+            $types,
+            $nombre,
+            $apellido,
+            $identificacion,
+            $foto,
+            $foto_tipo,
+            $direccion,
+            $ubicacion,
+            $telefono,
+            $correo,
+            $dept
+        )) {
+            $msg = "bind_param falló (colaboradores): " . $stmt->error;
+            error_log($msg);
+            throw new Exception($msg);
+        }
+
+        if (!$stmt->execute()) {
+            $msg = "Execute falló (colaboradores): " . $stmt->error . " | conn_error: " . $this->conn->error;
+            error_log($msg);
+            throw new Exception($msg);
+        }
+        $colaborador_id = $this->conn->insert_id;
+        $stmt->close();
+
+        // 2) Insertar en usuarios (rol 'colab')
+        $contrasena_hash = password_hash($contrasena, PASSWORD_DEFAULT);
+
+        $sql2 = "INSERT INTO usuarios (nombre, correo, contrasena, rol, activo, fecha_creacion) VALUES (?, ?, ?, 'colab', 1, NOW())";
+        $stmt2 = $this->conn->prepare($sql2);
+        if (!$stmt2) {
+            $msg = "Prepare falló (usuarios): " . $this->conn->error;
+            error_log($msg);
+            throw new Exception($msg);
+        }
+        if (!$stmt2->bind_param("sss", $usuario, $correo, $contrasena_hash)) {
+            $msg = "bind_param falló (usuarios): " . $stmt2->error;
+            error_log($msg);
+            throw new Exception($msg);
+        }
+        if (!$stmt2->execute()) {
+            $msg = "Execute falló (usuarios): " . $stmt2->error . " | conn_error: " . $this->conn->error;
+            error_log($msg);
+            throw new Exception($msg);
+        }
+        $stmt2->close();
+
+        $this->conn->commit();
+        return true;
+
+    } catch (Exception $e) {
+        $this->conn->rollback();
+        error_log("Error en insertarColaborador(): " . $e->getMessage());
+        return false;
+    }
+}
+
+// Métodos para CRUD de Usuarios
+public function verificarUsuarioExiste($correo) {
+    $stmt = $this->conn->prepare("SELECT id FROM usuarios WHERE correo = ?");
+    $stmt->bind_param("s", $correo);
+    $stmt->execute();
         $result = $stmt->get_result();
         $exists = $result->num_rows > 0;
         $stmt->close();
