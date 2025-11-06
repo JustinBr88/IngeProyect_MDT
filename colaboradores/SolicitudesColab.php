@@ -31,7 +31,6 @@ $solicitudes = $conexion->obtenerSolicitudesColaborador($colaborador_id);
                         <th scope="col">Estado</th>
                         <th scope="col">Respuesta Admin</th>
                         <th scope="col">Fecha Respuesta</th>
-                        <th scope="col">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -39,7 +38,7 @@ $solicitudes = $conexion->obtenerSolicitudesColaborador($colaborador_id);
                         <?php foreach ($solicitudes as $solicitud): ?>
                             <tr>
                                 <td><?php echo $solicitud['id']; ?></td>
-                                <td><?php echo htmlspecialchars($solicitud['equipo_nombre']); ?></td>
+                                   <td><?php echo htmlspecialchars($solicitud['equipo_nombre'] ?? ''); ?></td>
                                 <td><?php echo date('d/m/Y H:i', strtotime($solicitud['fecha_solicitud'])); ?></td>
                                 <td>
                                     <?php
@@ -51,21 +50,11 @@ $solicitudes = $conexion->obtenerSolicitudesColaborador($colaborador_id);
                                 <td><?php echo $solicitud['admin_nombre'] ?? '-'; ?></td>
                                 <td><?php echo $solicitud['fecha_respuesta'] ? date('d/m/Y H:i', strtotime($solicitud['fecha_respuesta'])) : '-'; ?></td>
                                 <td>
-                                    <?php if ($solicitud['estado'] === 'pendiente'): ?>
-                                        <button class="btn btn-sm btn-danger" onclick="cancelarSolicitud(<?php echo $solicitud['id']; ?>)">
-                                            <i class="fa fa-times"></i> Cancelar
-                                        </button>
-                                    <?php else: ?>
-                                        <span class="text-muted">-</span>
-                                    <?php endif; ?>
-                                </td>
-                            </tr>
                         <?php endforeach; ?>
                     <?php else: ?>
                         <tr>
                             <td colspan="7" class="text-center text-muted">
                                 <i class="fa fa-inbox fa-2x mb-3"></i><br>
-                                No tienes solicitudes registradas
                             </td>
                         </tr>
                     <?php endif; ?>
@@ -93,8 +82,8 @@ $solicitudes = $conexion->obtenerSolicitudesColaborador($colaborador_id);
                             $equipos_disponibles = $conexion->obtenerEquiposDisponibles();
                             foreach ($equipos_disponibles as $equipo): 
                             ?>
-                                <option value="<?php echo $equipo['id']; ?>">
-                                    <?php echo htmlspecialchars($equipo['nombre_equipo']) . ' - ' . htmlspecialchars($equipo['categoria']); ?>
+                                   <option value="<?php echo $equipo['id']; ?>">
+                                       <?php echo htmlspecialchars($equipo['nombre_equipo'] ?? '') . ' - ' . htmlspecialchars($equipo['categoria'] ?? ''); ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
