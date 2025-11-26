@@ -90,6 +90,10 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!/^\d+$/.test(numero)) { alert('El número de serie solo debe contener dígitos (0-9).'); if (numeroInput && typeof numeroInput.focus==='function') numeroInput.focus(); return; }
             if (!lote) { alert('Selecciona un lote'); if (loteSelect && typeof loteSelect.focus==='function') loteSelect.focus(); return; }
 
+            // prepare submit button ref (needed by checks) BEFORE async checks
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const oldText = submitBtn ? submitBtn.innerHTML : null;
+
             // check existence of numero_serie before sending
             try {
                 const chk = await fetch('conexinventario.php?action=exists&numero_serie=' + encodeURIComponent(numero));
@@ -98,7 +102,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (jchk && jchk.success && jchk.data && jchk.data.exists) {
                     alert('Ese número de serie ya existe en inventario. Introduzca otro.');
                     if (numeroInput && typeof numeroInput.focus === 'function') numeroInput.focus();
-                    if (submitBtn) submitBtn.disabled = false;
                     return;
                 }
             } catch (e) { console.warn('check exists failed', e); /* allow proceed if check fails */ }
@@ -108,9 +111,7 @@ document.addEventListener('DOMContentLoaded', function () {
             fd.set('lote_id', lote);
             fd.set('require_lote','1');
 
-        const submitBtn = this.querySelector('button[type="submit"]');
-        const oldText = submitBtn ? submitBtn.innerHTML : null;
-        if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = 'Guardando...'; }
+            if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = 'Guardando...'; }
 
         fetch('conexinventario.php?action=alta', { method:'POST', body: fd })
             .then(async r => { const txt = await r.text(); try { return JSON.parse(txt); } catch(e){ console.error('alta no JSON', txt); return { success:false, message:'Respuesta no válida' }; } })

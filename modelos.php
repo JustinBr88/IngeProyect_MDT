@@ -87,6 +87,10 @@ if ($stmt) {
       </div>
       <div class="modal-body">
         <div class="row g-3">
+          <div class="col-md-8">
+            <label class="form-label">Nombre del lote *</label>
+            <input type="text" name="nombre_equipo" id="nombre_equipo" class="form-control" required maxlength="100">
+          </div>
             <!-- Nombre, categoría y demás campos del lote -->
           <div class="col-md-4">
             <label class="form-label">Categoría *</label>
