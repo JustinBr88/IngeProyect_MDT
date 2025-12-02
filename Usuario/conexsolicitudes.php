@@ -13,6 +13,7 @@ if (!isset($_SESSION['logeado']) || $_SESSION['logeado'] !== true) {
 $data = json_decode(file_get_contents("php://input"), true);
 $solicitud_id = $data['solicitud_id'] ?? null;
 $accion = $data['accion'] ?? null;
+$motivo = isset($data['motivo']) ? trim($data['motivo']) : null;
 
 if (!$solicitud_id || !$accion) {
     echo json_encode(['success' => false, 'error' => 'Datos incompletos.']);
@@ -23,6 +24,20 @@ if (!$solicitud_id || !$accion) {
 if (!in_array($accion, ['aprobar', 'rechazar'])) {
     echo json_encode(['success' => false, 'error' => 'Acción no válida.']);
     exit;
+}
+
+// For rejecting: motivo is optional. If provided, validate word count (>=10)
+if ($accion === 'rechazar') {
+    if ($motivo !== null && $motivo !== '') {
+        // Server-side word-count validation: at least 10 words when motivo provided
+        $words = preg_split('/\s+/', trim($motivo));
+        $wordCount = 0;
+        foreach ($words as $w) { if (is_string($w) && strlen($w) > 0) $wordCount++; }
+        if ($wordCount < 10) {
+            echo json_encode(['success' => false, 'error' => 'El motivo debe contener al menos 10 palabras. Actualmente tiene ' . $wordCount . '.']);
+            exit;
+        }
+    }
 }
 
 // Iniciar transacción
@@ -65,11 +80,24 @@ try {
         $stmt->execute();
         $stmt->close();
         
-        // 3. Actualizar estado de la solicitud a "aprobada"
-        $stmt = $conexion->getConexion()->prepare("
-            UPDATE solicitudes SET estado = 'aprobada', fecha_respuesta = NOW() WHERE id = ?
-        ");
-        $stmt->bind_param("i", $solicitud_id);
+        // 3. Actualizar estado de la solicitud a "aprobada" y registrar admin
+        $admin_id = $_SESSION['id'] ?? null;
+        if ($admin_id) {
+            // If the payload includes the 'motivo' key (i.e. $motivo is not null), update motivo column too.
+            $stmt = $conexion->getConexion()->prepare(
+                "UPDATE solicitudes SET estado = 'aprobada', fecha_respuesta = NOW(), usuario_admin_id = ?" .
+                ($motivo !== null ? ", motivo = ?" : "") .
+                " WHERE id = ?"
+            );
+            if ($motivo !== null) {
+                $stmt->bind_param("isi", $admin_id, $motivo, $solicitud_id);
+            } else {
+                $stmt->bind_param("ii", $admin_id, $solicitud_id);
+            }
+        } else {
+            $stmt = $conexion->getConexion()->prepare("UPDATE solicitudes SET estado = 'aprobada', fecha_respuesta = NOW() WHERE id = ?");
+            $stmt->bind_param("i", $solicitud_id);
+        }
         $stmt->execute();
         $stmt->close();
         
@@ -85,11 +113,29 @@ try {
         $stmt->execute();
         $stmt->close();
         
-        // 2. Actualizar estado de la solicitud a "rechazada"
-        $stmt = $conexion->getConexion()->prepare("
-            UPDATE solicitudes SET estado = 'rechazada', fecha_respuesta = NOW() WHERE id = ?
-        ");
-        $stmt->bind_param("i", $solicitud_id);
+        // 2. Actualizar estado de la solicitud a "rechazada", registrar admin y opcionalmente motivo
+        $admin_id = $_SESSION['id'] ?? null;
+        // If payload includes motivo key, update motivo column (may be empty string); otherwise leave existing motivo intact
+        if ($motivo !== null) {
+            if ($admin_id) {
+                $stmt = $conexion->getConexion()->prepare(
+                    "UPDATE solicitudes SET estado = 'rechazada', fecha_respuesta = NOW(), usuario_admin_id = ?, motivo = ? WHERE id = ?"
+                );
+                $stmt->bind_param("isi", $admin_id, $motivo, $solicitud_id);
+            } else {
+                $stmt = $conexion->getConexion()->prepare("UPDATE solicitudes SET estado = 'rechazada', fecha_respuesta = NOW(), motivo = ? WHERE id = ?");
+                $stmt->bind_param("si", $motivo, $solicitud_id);
+            }
+        } else {
+            // No motivo supplied: update estado and fecha_respuesta and usuario_admin_id (if any), keep motivo unchanged
+            if ($admin_id) {
+                $stmt = $conexion->getConexion()->prepare("UPDATE solicitudes SET estado = 'rechazada', fecha_respuesta = NOW(), usuario_admin_id = ? WHERE id = ?");
+                $stmt->bind_param("ii", $admin_id, $solicitud_id);
+            } else {
+                $stmt = $conexion->getConexion()->prepare("UPDATE solicitudes SET estado = 'rechazada', fecha_respuesta = NOW() WHERE id = ?");
+                $stmt->bind_param("i", $solicitud_id);
+            }
+        }
         $stmt->execute();
         $stmt->close();
         

@@ -29,7 +29,7 @@ $solicitudes = $conexion->obtenerSolicitudesColaborador($colaborador_id);
                         <th scope="col">Equipo Solicitado</th>
                         <th scope="col">Fecha Solicitud</th>
                         <th scope="col">Estado</th>
-                        <th scope="col">Respuesta Admin</th>
+                        <th scope="col">Motivo</th>
                         <th scope="col">Fecha Respuesta</th>
                     </tr>
                 </thead>
@@ -47,7 +47,7 @@ $solicitudes = $conexion->obtenerSolicitudesColaborador($colaborador_id);
                                     echo "<span class='badge bg-$badge_class'>" . ucfirst($estado) . "</span>";
                                     ?>
                                 </td>
-                                <td><?php echo $solicitud['admin_nombre'] ?? '-'; ?></td>
+                                <td><?php echo nl2br(htmlspecialchars($solicitud['motivo'] ?? '-', ENT_QUOTES)); ?></td>
                                 <td><?php echo $solicitud['fecha_respuesta'] ? date('d/m/Y H:i', strtotime($solicitud['fecha_respuesta'])) : '-'; ?></td>
                                 <td>
                         <?php endforeach; ?>

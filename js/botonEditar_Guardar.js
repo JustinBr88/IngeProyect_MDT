@@ -1,219 +1,197 @@
-// Edición en línea y eliminación para inventario
-// Requiere: modales.js y modelos.php incluidos
+// botonEditar_Guardar.js - versión final defensiva (asegúrate de reemplazar el archivo completo)
+
 document.addEventListener('DOMContentLoaded', function () {
-    console.log('Script botonEditar_Guardar.js cargado');
-    const tabla = document.getElementById('tabla-inventario');
-    
-    if (!tabla) {
-        console.error('No se encontró la tabla con ID tabla-inventario');
-        return;
+    console.log('botonEditar_Guardar cargado (final)');
+
+    function normalizeButtonTarget(target) {
+        if (!target) return null;
+        if (target.tagName === 'BUTTON') return target;
+        return target.closest ? target.closest('button') : null;
     }
-    
-    console.log('Tabla encontrada, agregando eventos...');
 
-    tabla.addEventListener('click', function (e) {
-        console.log('Click detectado en:', e.target);
-        
-        // Editar
-        if (e.target.classList.contains('btn-editar')) {
-            console.log('Botón editar clickeado');
-            const tr = e.target.closest('tr');
-            
-            // NUEVA VALIDACIÓN: Verificar el estado del equipo
-            const estadoCell = tr.querySelector('.editable[data-campo="estado"]');
-            const estadoActual = estadoCell.textContent.trim().toLowerCase();
-            
-            // Bloquear edición si está en estado "donado" o "solicitado"
-            if (estadoActual === 'donado' || estadoActual === 'solicitado') {
-                mostrarErrores(`No se puede editar un equipo en estado "${estadoActual}"`);
+    // Safe getter for elements (id or selector or name)
+    function safeElement(container, queries) {
+        for (const q of queries) {
+            if (!q) continue;
+            let el = null;
+            if (q.startsWith('#')) el = document.getElementById(q.slice(1));
+            else if (q.startsWith('name=')) el = (container && container.elements && container.elements[q.slice(5)]) || (container && container.querySelector(`[name="${q.slice(5)}"]`)) || document.querySelector(`[name="${q.slice(5)}"]`);
+            else el = (container && container.querySelector(q)) || document.querySelector(q);
+            if (el) return el;
+        }
+        return null;
+    }
+
+    document.addEventListener('click', async function (e) {
+        const btn = normalizeButtonTarget(e.target);
+        if (!btn) return;
+
+        // mover equipo
+        if (btn.classList.contains('btn-edit-eq')) {
+            e.preventDefault();
+            const id = btn.dataset.id;
+            if (!id) return alert('ID inválido');
+            const newLote = prompt('ID de lote destino (dejar vacío para cancelar)');
+            if (!newLote) return;
+
+            // verify lote exists before attempting the move
+            try {
+                const resp = await fetch(`conexlotes.php?action=get&id=${encodeURIComponent(newLote)}`);
+                const text = await resp.text();
+                let j = null;
+                try { j = JSON.parse(text); } catch(e) { j = null; }
+                if (!j || !j.success) {
+                    alert('Lote destino no encontrado. Verifique el ID e intente de nuevo.');
+                    return;
+                }
+            } catch (err) {
+                console.warn('Error verificando lote destino', err);
+                alert('No se pudo verificar el lote destino (error de conexión). Intente de nuevo.');
                 return;
             }
-            
-            tr.querySelectorAll('.editable').forEach(function (td) {
-                const valor = td.textContent.trim();
-                const campo = td.getAttribute('data-campo');
-                
-                // Si es el campo de categoría, crear un select
-                if (campo === 'categoria_id') {
-                    fetch('../api_categorias.php?action=getCategorias')
-                        .then(res => res.json())
-                        .then(categorias => {
-                            let selectHtml = '<select class="form-control" data-campo="categoria_id">';
-                            categorias.forEach(cat => {
-                                const selected = cat.nombre === valor ? 'selected' : '';
-                                selectHtml += `<option value="${cat.id}" ${selected}>${cat.nombre}</option>`;
-                            });
-                            selectHtml += '</select>';
-                            td.innerHTML = selectHtml;
-                        })
-                        .catch(() => {
-                            td.innerHTML = `<input type="text" class="form-control" value="${valor}">`;
-                        });
-                } else if (campo === 'estado') {
-                    // Para el estado, crear select pero bloquear ciertos estados
-                    const estados = [
-                        {value: 'activo', text: 'Activo'},
-                        {value: 'baja', text: 'Baja'},
-                        {value: 'reparacion', text: 'En reparación'},
-                        {value: 'descarte', text: 'En descarte'},
-                        {value: 'inventario', text: 'Inventario'},
-                    ];
-                    let selectHtml = '<select class="form-control" data-campo="estado"';
-                    // Deshabilitar si está en estados protegidos
-                    if (valor.toLowerCase() === "solicitado" || valor.toLowerCase() === "asignado" || valor.toLowerCase() === "donado") {
-                        selectHtml += ' disabled';
-                    }
-                    selectHtml += '>';
-                    estados.forEach(estado => {
-                        const selected = estado.text === valor ? 'selected' : '';
-                        selectHtml += `<option value="${estado.value}" ${selected}>${estado.text}</option>`;
-                    });
-                    selectHtml += '</select>';
-                    td.innerHTML = selectHtml;
-                } else if (campo === 'fecha_ingreso') {
-                    td.innerHTML = `<input type="date" class="form-control" value="${valor}">`;
-                } else if (campo === 'costo' || campo === 'tiempo_depreciacion') {
-                    td.innerHTML = `<input type="number" class="form-control" value="${valor}" ${campo === 'costo' ? 'step="0.01"' : ''}>`;
-                } else {
-                    td.innerHTML = `<input type="text" class="form-control" value="${valor}">`;
-                }
-            });
-            
-            tr.querySelector('.btn-editar').classList.add('d-none');
-            tr.querySelector('.btn-guardar').classList.remove('d-none');
+
+            // proceed to move
+            fetch('conexinventario.php?action=update', { method: 'POST',
+                headers:{ 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: id, lote_id: newLote })
+            })
+            .then(async r => { const txt = await r.text(); try { return JSON.parse(txt); } catch(e){ return { success:false, message:txt }; } })
+            .then(js => { if (!js.success) alert(js.message||js.error||'Error'); else { alert(js.message||'OK'); if (window.currentLoteId && String(window.currentLoteId)===String(newLote) && typeof window.loadEquiposByLote === 'function') window.loadEquiposByLote(window.currentLoteId); else location.reload(); } })
+            .catch(err => { console.error(err); alert('Error de conexión'); });
+            return;
         }
 
-        // Guardar
-        if (e.target.classList.contains('btn-guardar')) {
-            console.log('Botón guardar clickeado');
-            const tr = e.target.closest('tr');
-            const id = tr.getAttribute('data-id');
-            let datos = { id };
-            tr.querySelectorAll('.editable').forEach(function (td) {
-                const campo = td.getAttribute('data-campo');
-                const input = td.querySelector('input');
-                const select = td.querySelector('select');
-                
-                if (campo === 'estado') {
-                    // Si el select está deshabilitado, no permitir cambio
-                    if (select && select.disabled) {
-                        datos[campo] = select.options[select.selectedIndex].value;
-                    } else if (select) {
-                        // Solo permitir los valores permitidos desde backend
-                        if (["activo","baja","reparacion","descarte","donado","inventario"].includes(select.value)) {
-                            datos[campo] = select.value;
-                        } else {
-                            mostrarErrores('No se puede seleccionar estados protegidos desde la edición.');
-                            return;
-                        }
-                    }
-                } else if (select) {
-                    datos[campo] = select.value;
-                } else if (input) {
-                    datos[campo] = input.value.trim();
-                }
-            });
-
-            console.log('Datos a enviar:', datos);
-            
-            confirmarGuardar(() => {
-                fetch('conexinventario.php?action=update', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(datos)
-                })
-                .then(res => res.json())
-                .then(resp => {
-                    console.log('Respuesta del servidor:', resp);
-                    manejarRespuestaAjax(resp, () => {
-                        tr.querySelectorAll('.editable').forEach(function (td) {
-                            const campo = td.getAttribute('data-campo');
-                            td.textContent = datos[campo];
-                        });
-                        tr.querySelector('.btn-editar').classList.remove('d-none');
-                        tr.querySelector('.btn-guardar').classList.add('d-none');
-                        mostrarExito('¡Cambios guardados!', 'Los datos se actualizaron correctamente.');
-                    });
-                })
-                .catch(manejarErrorFetch);
-            });
-        }
-
-        // Eliminar
-        if (e.target.classList.contains('btn-eliminar')) {
-            console.log('Botón eliminar clickeado');
-            const tr = e.target.closest('tr');
-            const id = tr.getAttribute('data-id');
-            
-            // NUEVA VALIDACIÓN: Verificar el estado antes de eliminar
-            const estadoCell = tr.querySelector('.editable[data-campo="estado"]');
-            const estadoActual = estadoCell.textContent.trim().toLowerCase();
-            
-            // Bloquear eliminación si está en estado "donado", "solicitado" o "asignado"
-            if (estadoActual === 'donado' || estadoActual === 'solicitado' || estadoActual === 'asignado') {
-                mostrarErrores(`No se puede eliminar un equipo en estado "${estadoActual}"`);
-                return;
-            }
-            
-            confirmarEliminar(() => {
-                fetch('conexinventario.php?action=delete', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id })
-                })
-                .then(res => res.json())
-                .then(resp => {
-                    console.log('Respuesta del servidor:', resp);
-                    manejarRespuestaAjax(resp, () => {
-                        tr.remove();
-                        mostrarExito('¡Elemento eliminado!', 'El elemento se eliminó correctamente del inventario.');
-                    });
-                })
-                .catch(manejarErrorFetch);
-            });
+        // eliminar equipo
+        if (btn.classList.contains('btn-del-eq')) {
+            e.preventDefault();
+            const id = btn.dataset.id;
+            if (!id) return alert('ID inválido');
+            if (!confirm('¿Eliminar equipo?')) return;
+            const fd = new FormData(); fd.append('id', id);
+            fetch('conexinventario.php?action=delete', { method:'POST', body: fd })
+                .then(async r => { const txt = await r.text(); try { return JSON.parse(txt); } catch(e){ return { success:false, message:txt }; } })
+                .then(js => { if (!js.success) alert(js.message||'Error'); else { alert(js.message||'Eliminado'); if (typeof window.loadEquiposByLote === 'function' && window.currentLoteId) window.loadEquiposByLote(window.currentLoteId); else location.reload(); } })
+                .catch(err => { console.error(err); alert('Error de conexión'); });
+            return;
         }
     });
 
-    // Alta de nuevo equipo/software
+    // formNuevo submit
     const formNuevo = document.getElementById('formNuevo');
-    if (formNuevo) {
-        formNuevo.addEventListener('submit', function(e) {
-            e.preventDefault();
-            console.log('Formulario de alta enviado');
-            const nombreEquipo = this.querySelector('input[name="nombre_equipo"]').value.trim();
-            const categoriaId = this.querySelector('select[name="categoria_id"]').value;
-            console.log('Nombre equipo antes de enviar:', nombreEquipo);
-            console.log('Categoria ID antes de enviar:', categoriaId);
-            if (nombreEquipo.length < 2) {
-                mostrarErrores('El nombre del equipo debe tener al menos 2 caracteres');
-                return;
+    if (!formNuevo) { console.warn('formNuevo no encontrado'); return; }
+    formNuevo.addEventListener('submit', async function(e){
+        e.preventDefault();
+        try {
+            // check document functions exist
+            if (typeof document.getElementById !== 'function') { console.error('document.getElementById no es una función; posible sobrescritura de document'); alert('Error interno: objeto document corrupto (ver consola)'); return; }
+
+            // attempt primary safe lookups
+            let numeroInput = safeElement(this, ['#nuevo_numero_serie', 'name=numero_serie', 'input[name="numero_serie"]']);
+            let loteSelect = safeElement(this, ['#nuevo_lote_id', 'name=lote_id', 'select[name="lote_id"]']);
+
+            // additional fallbacks in case DOM structure differs
+            if (!numeroInput) {
+                numeroInput = this.querySelector && (this.querySelector('input[name="numero_serie"]') || document.getElementById('nuevo_numero_serie')) || null;
             }
-            if (!categoriaId || categoriaId === '' || categoriaId === '0') {
-                mostrarErrores('Debe seleccionar una categoría');
-                return;
+            if (!loteSelect) {
+                loteSelect = this.querySelector && (this.querySelector('select[name="lote_id"]') || document.getElementById('nuevo_lote_id')) || null;
             }
-            const formData = new FormData(this);
-            fetch('conexinventario.php?action=alta', {
-                method: 'POST',
-                body: formData
-            })
-            .then(res => res.json())
-            .then(resp => {
-                console.log('Respuesta del servidor (alta):', resp);
-                manejarRespuestaAjax(resp, () => {
-                    const modalNuevo = bootstrap.Modal.getInstance(document.getElementById('modalNuevo'));
-                    if (modalNuevo) {
-                        modalNuevo.hide();
+
+            // read values safely (guard against null / missing .value)
+            let numero = '';
+            let lote = '';
+            try { numero = numeroInput && ('value' in numeroInput) ? (numeroInput.value || '').trim() : ''; } catch (inner) { console.warn('leer numeroInput falló', inner); numero = ''; }
+            try { lote = loteSelect && ('value' in loteSelect) ? (loteSelect.value || '').trim() : ''; } catch (inner) { console.warn('leer loteSelect falló', inner); lote = ''; }
+
+            if (!numero) { alert('Número de serie obligatorio'); if (numeroInput && typeof numeroInput.focus==='function') numeroInput.focus(); return; }
+            // enforce digits only
+            if (!/^\d+$/.test(numero)) { alert('El número de serie solo debe contener dígitos (0-9).'); if (numeroInput && typeof numeroInput.focus==='function') numeroInput.focus(); return; }
+            if (!lote) { alert('Selecciona un lote'); if (loteSelect && typeof loteSelect.focus==='function') loteSelect.focus(); return; }
+
+            // prepare submit button ref (needed by checks) BEFORE async checks
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const oldText = submitBtn ? submitBtn.innerHTML : null;
+
+            // check existence of numero_serie before sending
+            try {
+                const chk = await fetch('conexinventario.php?action=exists&numero_serie=' + encodeURIComponent(numero));
+                const txtchk = await chk.text();
+                let jchk; try { jchk = JSON.parse(txtchk); } catch(e) { jchk = null; }
+                if (jchk && jchk.success && jchk.data && jchk.data.exists) {
+                    alert('Ese número de serie ya existe en inventario. Introduzca otro.');
+                    if (numeroInput && typeof numeroInput.focus === 'function') numeroInput.focus();
+                    return;
+                }
+            } catch (e) { console.warn('check exists failed', e); /* allow proceed if check fails */ }
+
+            const fd = new FormData(this);
+            fd.set('numero_serie', numero);
+            fd.set('lote_id', lote);
+            fd.set('require_lote','1');
+
+            if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = 'Guardando...'; }
+
+        fetch('conexinventario.php?action=alta', { method:'POST', body: fd })
+            .then(async r => { const txt = await r.text(); try { return JSON.parse(txt); } catch(e){ console.error('alta no JSON', txt); return { success:false, message:'Respuesta no válida' }; } })
+            .then(js => {
+                if (!js.success) { alert(js.message || 'Error creando equipo'); return; }
+                // refresh data first, then close modal robustly and reset form
+                alert(js.message || 'Equipo creado');
+                // try to refresh inline lists without reloading
+                try {
+                    if (window.currentLoteId && String(window.currentLoteId) === String(lote) && typeof window.loadEquiposByLote === 'function') {
+                        window.loadEquiposByLote(window.currentLoteId);
+                    } else if (typeof window.fetchLotes === 'function') {
+                        window.fetchLotes();
                     }
-                    mostrarExito('¡Elemento agregado!', 'El nuevo elemento se agregó correctamente al inventario.');
-                    setTimeout(() => {
-                        location.reload();
-                    }, 1500);
-                });
+                } catch(e) {
+                    console.warn('refresh after alta failed', e);
+                }
+
+                // Ensure the main Inventory page reloads — try to navigate to the Inventario link if present
+                try {
+                    // prefer a nav link to Inventario if available
+                    let invHref = null;
+                    try {
+                        const anchors = Array.from(document.querySelectorAll('a'));
+                        const invAnchor = anchors.find(a => a.textContent && a.textContent.trim().toLowerCase().includes('inventario'));
+                        if (invAnchor && invAnchor.href) invHref = invAnchor.href;
+                    } catch(e) { /* ignore */ }
+                    setTimeout(function(){
+                        try {
+                            if (invHref) {
+                                // navigate explicitly to inventory main page
+                                window.location.href = invHref;
+                            } else {
+                                // fallback: reload current page fully
+                                window.location.reload();
+                            }
+                        } catch(e) { try { window.location.reload(); } catch(_) {} }
+                    }, 900);
+                } catch(e) {}
+
+                // attempt to close modal using exposed helper or bootstrap instance or fallback
+                try {
+                    const modalEl = document.getElementById('modalNuevo');
+                    // first try global helper from lotes.js
+                    if (window._lotes_closeModalSafe) {
+                        try { window._lotes_closeModalSafe(null, modalEl); } catch(e) { console.warn('helper close fail', e); }
+                    } else if (modalEl && window.bootstrap && window.bootstrap.Modal) {
+                        try { const inst = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl); inst.hide(); } catch(e) { /* ignore */ }
+                    } else if (modalEl) {
+                        modalEl.classList.remove('show'); modalEl.style.display='none'; modalEl.setAttribute('aria-hidden','true'); document.body.classList.remove('modal-open'); document.querySelectorAll('.modal-backdrop').forEach(b=>b.remove());
+                    }
+                    if (window._lotes_unstickAll) try { window._lotes_unstickAll(); } catch(e){}
+                } catch(e) { console.warn('cerrar modal error', e); }
+
+                // reset the form
+                try { if (formNuevo && typeof formNuevo.reset === 'function') formNuevo.reset(); } catch(e) {}
             })
-            .catch(manejarErrorFetch);
-        });
-    } else {
-        console.error('No se encontró el formulario con ID formNuevo');
-    }
+            .catch(err => { console.error('Error alta', err); alert('Error de conexión'); })
+            .finally(()=> { if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = oldText; } });
+        } catch (err) {
+            console.error('formNuevo submit error', err);
+            alert('Error interno al procesar el formulario (ver consola)');
+        }
+    });
 });

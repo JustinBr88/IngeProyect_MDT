@@ -8,6 +8,16 @@ class Conexion {
     private $conn;
 
     public function __construct() {
+        // Security headers and error handling to avoid leaking HTML/warnings into API JSON responses
+        if (!headers_sent()) {
+            header_remove('X-Powered-By');
+            header('X-Content-Type-Options: nosniff');
+            header('X-Frame-Options: SAMEORIGIN');
+            header('Referrer-Policy: no-referrer-when-downgrade');
+        }
+        // In development you might want display_errors=1, but for AJAX endpoints it's safer to disable direct output
+        ini_set('display_errors', '0');
+        ini_set('log_errors', '1');
         try {
             // Opción 1: Conexión con configuración específica para WAMP
             $this->conn = new mysqli($this->servername, $this->username, $this->password, $this->dbname);
