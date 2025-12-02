@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', function () {
         return null;
     }
 
-    document.addEventListener('click', function (e) {
+    document.addEventListener('click', async function (e) {
         const btn = normalizeButtonTarget(e.target);
         if (!btn) return;
 
@@ -33,6 +33,24 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!id) return alert('ID inválido');
             const newLote = prompt('ID de lote destino (dejar vacío para cancelar)');
             if (!newLote) return;
+
+            // verify lote exists before attempting the move
+            try {
+                const resp = await fetch(`conexlotes.php?action=get&id=${encodeURIComponent(newLote)}`);
+                const text = await resp.text();
+                let j = null;
+                try { j = JSON.parse(text); } catch(e) { j = null; }
+                if (!j || !j.success) {
+                    alert('Lote destino no encontrado. Verifique el ID e intente de nuevo.');
+                    return;
+                }
+            } catch (err) {
+                console.warn('Error verificando lote destino', err);
+                alert('No se pudo verificar el lote destino (error de conexión). Intente de nuevo.');
+                return;
+            }
+
+            // proceed to move
             fetch('conexinventario.php?action=update', { method: 'POST',
                 headers:{ 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id: id, lote_id: newLote })

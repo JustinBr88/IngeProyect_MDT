@@ -117,6 +117,10 @@ $result = $conexion->getConexion()->query($sql);
                 </div>
                 <div class="modal-body">
                     <p id="accionTexto"></p>
+                    <div id="adminMotivoWrapper" class="mb-3">
+                        <label for="adminMotivo" class="form-label">Motivo (obligatorio al rechazar)</label>
+                        <textarea id="adminMotivo" name="adminMotivo" class="form-control" rows="3" placeholder="Explica la razón del rechazo..." tabindex="0"></textarea>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="submit" class="btn btn-success" id="btnConfirmarAccion">Confirmar</button>

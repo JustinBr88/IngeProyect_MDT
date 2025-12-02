@@ -65,6 +65,18 @@ if (isset($_GET['action']) && $_GET['action'] === 'update') {
     // Case: only moving to another lote
     if (array_key_exists('lote_id', $data) && count($data) <= 2) {
         $newLote = intval($data['lote_id']);
+        if ($newLote <= 0) jsonResp(false, 'Lote destino inválido', null, 400);
+
+        // Verify that the destination lote exists
+        $chk = $db->prepare("SELECT id FROM lotes WHERE id = ? LIMIT 1");
+        if (!$chk) jsonResp(false, 'Error preparando verificación de lote: ' . $db->error, null, 500);
+        $chk->bind_param('i', $newLote);
+        if (!$chk->execute()) { $chk->close(); jsonResp(false, 'Error ejecutando verificación de lote: ' . $chk->error, null, 500); }
+        $reschk = $chk->get_result();
+        $exists = (bool)$reschk->fetch_assoc();
+        $chk->close();
+        if (!$exists) jsonResp(false, 'Lote destino no existe', null, 400);
+
         $stmt = $db->prepare("UPDATE inventario SET lote_id = ? WHERE id = ?");
         if (!$stmt) jsonResp(false, 'Error preparando UPDATE lote: ' . $db->error, null, 500);
         $stmt->bind_param('ii', $newLote, $id);

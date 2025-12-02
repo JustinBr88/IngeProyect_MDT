@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <td>${l.cantidad ?? 0}</td>
                 <td>
                   <button type="button" class="btn btn-sm btn-warning btn-detalles" data-id="${l.id}" data-nombre="${escapeHtml(l.nombre_equipo)}">Detalles</button>
-                  <button type="button" class="btn btn-sm btn-primary btn-edit" data-id="${l.id}">Editar</button>
+                  <button type="button" class="btn btn-sm btn-primary btn-edit" data-id="${l.id}">Cambiar lote</button>
                   <button type="button" class="btn btn-sm btn-danger btn-delete" data-id="${l.id}">Eliminar</button>
                 </td>
             `;
@@ -151,7 +151,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   <td>${escapeHtml(r.estado ?? '')}</td>
                   <td><img src="${img}" style="width:60px;height:40px;object-fit:cover"></td>
                   <td>
-                    <button type="button" class="btn btn-sm btn-primary btn-edit-eq" data-id="${r.id}">Editar</button>
+                    <button type="button" class="btn btn-sm btn-primary btn-edit-eq" data-id="${r.id}">Cambiar lote</button>
                     <button type="button" class="btn btn-sm btn-danger btn-del-eq" data-id="${r.id}">Eliminar</button>
                   </td>`;
                 tbodyEquiposLote.appendChild(tr);

@@ -66,7 +66,7 @@ $stmt->close();
                   <td><?= htmlspecialchars($l['cantidad'] ?? 0) ?></td>
                   <td>
                     <button class="btn btn-sm btn-warning btn-detalles" data-id="<?= $l['id'] ?>" data-nombre="<?= htmlspecialchars($l['nombre_equipo']) ?>">Detalles</button>
-                    <button class="btn btn-sm btn-primary btn-edit" data-id="<?= $l['id'] ?>">Editar</button>
+                    <button class="btn btn-sm btn-primary btn-edit" data-id="<?= $l['id'] ?>">Cambiar lote</button>
                     <button class="btn btn-sm btn-danger btn-delete" data-id="<?= $l['id'] ?>">Eliminar</button>
                   </td>
                 </tr>
