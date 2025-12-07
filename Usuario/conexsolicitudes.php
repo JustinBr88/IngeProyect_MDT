@@ -113,28 +113,18 @@ try {
         $stmt->execute();
         $stmt->close();
         
-        // 2. Actualizar estado de la solicitud a "rechazada", registrar admin y opcionalmente motivo
+        // 2. Actualizar estado de la solicitud a "rechazada" y BORRAR el texto del motivo
+        // Al rechazar, sobrescribimos la columna `motivo` con cadena vacía para eliminar el texto previo.
         $admin_id = $_SESSION['id'] ?? null;
-        // If payload includes motivo key, update motivo column (may be empty string); otherwise leave existing motivo intact
-        if ($motivo !== null) {
-            if ($admin_id) {
-                $stmt = $conexion->getConexion()->prepare(
-                    "UPDATE solicitudes SET estado = 'rechazada', fecha_respuesta = NOW(), usuario_admin_id = ?, motivo = ? WHERE id = ?"
-                );
-                $stmt->bind_param("isi", $admin_id, $motivo, $solicitud_id);
-            } else {
-                $stmt = $conexion->getConexion()->prepare("UPDATE solicitudes SET estado = 'rechazada', fecha_respuesta = NOW(), motivo = ? WHERE id = ?");
-                $stmt->bind_param("si", $motivo, $solicitud_id);
-            }
+        $empty_motivo = '';
+        if ($admin_id) {
+            $stmt = $conexion->getConexion()->prepare(
+                "UPDATE solicitudes SET estado = 'rechazada', fecha_respuesta = NOW(), usuario_admin_id = ?, motivo = ? WHERE id = ?"
+            );
+            $stmt->bind_param("isi", $admin_id, $empty_motivo, $solicitud_id);
         } else {
-            // No motivo supplied: update estado and fecha_respuesta and usuario_admin_id (if any), keep motivo unchanged
-            if ($admin_id) {
-                $stmt = $conexion->getConexion()->prepare("UPDATE solicitudes SET estado = 'rechazada', fecha_respuesta = NOW(), usuario_admin_id = ? WHERE id = ?");
-                $stmt->bind_param("ii", $admin_id, $solicitud_id);
-            } else {
-                $stmt = $conexion->getConexion()->prepare("UPDATE solicitudes SET estado = 'rechazada', fecha_respuesta = NOW() WHERE id = ?");
-                $stmt->bind_param("i", $solicitud_id);
-            }
+            $stmt = $conexion->getConexion()->prepare("UPDATE solicitudes SET estado = 'rechazada', fecha_respuesta = NOW(), motivo = ? WHERE id = ?");
+            $stmt->bind_param("si", $empty_motivo, $solicitud_id);
         }
         $stmt->execute();
         $stmt->close();
